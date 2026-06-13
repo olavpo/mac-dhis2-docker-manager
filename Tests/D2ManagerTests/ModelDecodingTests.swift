@@ -1,0 +1,98 @@
+import Testing
+import Foundation
+@testable import D2Manager
+
+@Suite struct EnumTests {
+    @Test func instanceStatusDecodes() throws {
+        #expect(try decodeRaw(InstanceStatus.self, "\"running\"") == .running)
+        #expect(try decodeRaw(InstanceStatus.self, "\"partial\"") == .partial)
+        #expect(try decodeRaw(InstanceStatus.self, "\"stopped\"") == .stopped)
+    }
+
+    @Test func jobStatusTerminality() {
+        #expect(JobStatus.succeeded.isTerminal)
+        #expect(JobStatus.failed.isTerminal)
+        #expect(JobStatus.interrupted.isTerminal)
+        #expect(!JobStatus.queued.isTerminal)
+        #expect(!JobStatus.running.isTerminal)
+    }
+
+    @Test func jobOpDecodes() throws {
+        #expect(try decodeRaw(JobOp.self, "\"create\"") == .create)
+        #expect(try decodeRaw(JobOp.self, "\"delete\"") == .delete)
+    }
+}
+
+/// Decodes a JSON fragment that is itself a single value (e.g. a quoted string).
+func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
+    let wrapped = "[\(json)]"
+    return try JSONDecoder().decode([T].self, from: Data(wrapped.utf8))[0]
+}
+
+@Suite struct InstanceSeedTests {
+    @Test func instanceFullDecodes() throws {
+        let i = try BrokerCoders.decoder.decode(Instance.self, from: Fixtures.data(Fixtures.instanceJSON))
+        #expect(i.name == "school-ind-test")
+        #expect(i.status == .running)
+        #expect(i.httpPort == 9010)
+        #expect(i.pgPort == 5433)
+        #expect(i.localhostUrl == "http://localhost:9010")
+        #expect(i.devnetUrl == "http://dhis2-school-ind-test:8080")
+        #expect(i.devnetDb == "dhis2-school-ind-test-db:5432")
+        #expect(i.agentManaged == false)
+        #expect(i.dhis2MajorVersion == "42")
+        #expect(i.id == "school-ind-test")
+    }
+
+    @Test func instanceMinimalDecodes() throws {
+        let i = try BrokerCoders.decoder.decode(Instance.self, from: Fixtures.data(Fixtures.instanceMinimalJSON))
+        #expect(i.httpPort == nil)
+        #expect(i.localhostUrl == nil)
+        #expect(i.dhis2MajorVersion == nil)
+        #expect(i.agentManaged == true)
+    }
+
+    @Test func seedDecodes() throws {
+        let s = try BrokerCoders.decoder.decode(Seed.self, from: Fixtures.data(Fixtures.seedJSON))
+        #expect(s.path == "sl-demo-v42.sql.gz")
+        #expect(s.source == .seeds)
+        #expect(s.sizeBytes == 184729281)
+        #expect(s.modified == "2026-04-01T13:22:08+00:00")
+        #expect(s.id == "sl-demo-v42.sql.gz")
+    }
+}
+
+@Suite struct JobTests {
+    @Test func runningJobDecodes() throws {
+        let j = try BrokerCoders.decoder.decode(Job.self, from: Fixtures.data(Fixtures.jobRunningJSON))
+        #expect(j.id == "j-1a2b3c4d")
+        #expect(j.op == .create)
+        #expect(j.instance == "agent-test1")
+        #expect(j.status == .running)
+        #expect(j.startedAt == "2026-06-13T09:14:02+00:00")
+        #expect(j.finishedAt == nil)
+        #expect(j.exitCode == nil)
+        #expect(j.result == nil)
+        #expect(j.logTail == "...last 20 lines...")
+    }
+
+    @Test func succeededJobCarriesResultInstance() throws {
+        let j = try BrokerCoders.decoder.decode(Job.self, from: Fixtures.data(Fixtures.jobSucceededJSON))
+        #expect(j.status == .succeeded)
+        #expect(j.exitCode == 0)
+        #expect(j.result?.name == "agent-test1")
+        #expect(j.result?.httpPort == 9011)
+        #expect(j.result?.status == .running)
+    }
+
+    @Test func createRequestOmitsNilsAndSnakeCases() throws {
+        let req = CreateInstanceRequest(name: "demo1", version: "2.42", warUrl: "https://x/y.war")
+        let data = try BrokerCoders.encoder.encode(req)
+        let obj = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        #expect(obj["name"] as? String == "demo1")
+        #expect(obj["version"] as? String == "2.42")
+        #expect(obj["war_url"] as? String == "https://x/y.war")
+        #expect(obj["seed"] == nil)        // nil omitted
+        #expect(obj["tomcat"] == nil)      // nil omitted
+    }
+}
