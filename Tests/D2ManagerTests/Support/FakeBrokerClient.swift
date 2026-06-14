@@ -16,6 +16,9 @@ final class FakeBrokerClient: BrokerClientProtocol, @unchecked Sendable {
     var error: BrokerError?
     var instancesError: BrokerError?
     var instancesFullError: BrokerError?
+    /// Any error to throw from `instances(full:)` regardless of `full` — used to
+    /// simulate a cancelled request (CancellationError).
+    var instancesThrowable: Error?
 
     private(set) var startedNames: [String] = []
     private(set) var stoppedNames: [String] = []
@@ -26,6 +29,7 @@ final class FakeBrokerClient: BrokerClientProtocol, @unchecked Sendable {
     func health() async -> Bool { error == nil }
 
     func instances(full: Bool) async throws -> [Instance] {
+        if let instancesThrowable { throw instancesThrowable }
         if full, let instancesFullError { throw instancesFullError }
         if let instancesError { throw instancesError }
         if let error { throw error }

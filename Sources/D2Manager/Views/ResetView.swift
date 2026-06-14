@@ -2,13 +2,13 @@ import SwiftUI
 
 struct ResetView: View {
     let instance: Instance
+    let close: () -> Void
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedSeed: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Reset \(instance.name)").font(.headline)
+            Text("Restore \(instance.name)").font(.headline)
             Text("Restores the database from a seed. Existing data is replaced.")
                 .font(.caption).foregroundStyle(.secondary)
 
@@ -21,11 +21,11 @@ struct ResetView: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Reset", role: .destructive) {
+                Button("Cancel") { close() }
+                Button("Restore", role: .destructive) {
                     Task {
                         await model.reset(name: instance.name, seed: selectedSeed)
-                        dismiss()
+                        close()
                     }
                 }
                 .disabled(selectedSeed.isEmpty)

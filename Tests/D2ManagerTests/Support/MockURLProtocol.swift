@@ -8,6 +8,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     /// Captures the most recent request so tests can assert method/path/headers/body.
     nonisolated(unsafe) static var lastRequest: URLRequest?
     nonisolated(unsafe) static var lastBody: Data?
+    /// When set (and no handler), the request fails with this error — used to
+    /// simulate transport failures such as a cancelled request.
+    nonisolated(unsafe) static var failure: (@Sendable () -> Error)?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -18,7 +21,8 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         Self.lastBody = request.httpBody ?? request.bodyStreamData()
 
         guard let handler = Self.handler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            let error = Self.failure?() ?? URLError(.badServerResponse)
+            client?.urlProtocol(self, didFailWithError: error)
             return
         }
         let (status, data) = handler(request)

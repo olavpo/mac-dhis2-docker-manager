@@ -32,6 +32,8 @@ final class AppModel {
             let fetched = try await client.instances(full: false)
             instances = merging(versions: versionsByName, into: fetched)
             lastError = nil
+        } catch is CancellationError {
+            // Request abandoned (view task torn down) — keep current state, no error.
         } catch {
             lastError = message(for: error)
         }
@@ -73,6 +75,7 @@ final class AppModel {
 
     func loadSeeds() async {
         do { seeds = try await client.seeds() }
+        catch is CancellationError { /* abandoned — ignore */ }
         catch { lastError = message(for: error) }
     }
 
@@ -117,6 +120,8 @@ final class AppModel {
             if finalJob.status != .succeeded {
                 lastError = finalJob.error ?? "Operation \(finalJob.op.rawValue) \(finalJob.status.rawValue)."
             }
+        } catch is CancellationError {
+            activeJob = nil
         } catch {
             activeJob = nil
             lastError = message(for: error)

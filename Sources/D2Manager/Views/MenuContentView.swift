@@ -1,11 +1,8 @@
 import SwiftUI
+import AppKit
 
 struct MenuContentView: View {
     @Environment(AppModel.self) private var model
-    @State private var resetTarget: Instance?
-    @State private var deleteTarget: Instance?
-    @State private var showCreate = false
-    @State private var logJobID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -27,14 +24,18 @@ struct MenuContentView: View {
                                 isBusy: model.isBusy,
                                 onStart: { Task { await model.start(name: instance.name) } },
                                 onStop: { Task { await model.stop(name: instance.name) } },
-                                onReset: { resetTarget = instance },
-                                onDelete: { deleteTarget = instance }
+                                onRestore: { openRestore(instance) },
+                                onDelete: { confirmDelete(instance) }
                             )
                             Divider()
                         }
                     }
                 }
-                .frame(maxHeight: 320)
+                // A ScrollView has no intrinsic content height, so in the
+                // auto-sizing menu-bar window it collapses to ~one row unless given
+                // a minimum. minHeight keeps several instances visible; maxHeight
+                // caps it so a long list scrolls instead of growing without bound.
+                .frame(minHeight: 200, maxHeight: 320)
             }
             if !model.recentJobs.isEmpty {
                 Divider()
@@ -47,7 +48,7 @@ struct MenuContentView: View {
                             .font(.caption)
                         Spacer()
                         if job.status != .succeeded {
-                            Button("Log") { logJobID = job.id }
+                            Button("Log") { openLog(job) }
                                 .controlSize(.mini)
                         }
                     }
@@ -61,24 +62,9 @@ struct MenuContentView: View {
             await model.loadRecentJobs()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
+                if Task.isCancelled { break }
                 await model.refresh()
             }
-        }
-        .sheet(isPresented: $showCreate) { CreateInstanceView() }
-        .sheet(item: $resetTarget) { ResetView(instance: $0) }
-        .confirmationDialog(
-            "Delete \(deleteTarget?.name ?? "")? This is irreversible.",
-            isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } }),
-            presenting: deleteTarget
-        ) { instance in
-            Button("Delete \(instance.name)", role: .destructive) {
-                Task { await model.delete(name: instance.name) }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .sheet(item: Binding(get: { logJobID.map { LogID(id: $0) } },
-                             set: { logJobID = $0?.id })) { wrapper in
-            JobLogView(jobID: wrapper.id)
         }
     }
 
@@ -94,7 +80,7 @@ struct MenuContentView: View {
 
     private var footer: some View {
         HStack {
-            Button("New instance…") { showCreate = true }.disabled(model.isBusy)
+            Button("New instance…") { openCreate() }.disabled(model.isBusy)
             Spacer()
             Button("Settings") { openSettings() }
             Button("Quit") { NSApplication.shared.terminate(nil) }
@@ -102,9 +88,45 @@ struct MenuContentView: View {
         .controlSize(.small)
     }
 
+    // MARK: Dialog windows
+    //
+    // These open standalone NSWindows (not .sheets on the MenuBarExtra popover),
+    // because the transient popover dismisses when a child control such as a
+    // Picker dropdown takes focus — which would take an attached sheet with it.
+
+    private func openCreate() {
+        Dialogs.create.present(title: "New instance", model: model) { close in
+            CreateInstanceView(close: close)
+        }
+    }
+
+    private func openRestore(_ instance: Instance) {
+        Dialogs.restore.present(title: "Restore \(instance.name)", model: model) { close in
+            ResetView(instance: instance, close: close)
+        }
+    }
+
+    private func openLog(_ job: Job) {
+        Dialogs.log.present(title: "Log — \(job.id)", model: model) { close in
+            JobLogView(jobID: job.id, close: close)
+        }
+    }
+
     private func openSettings() {
-        SettingsWindow.shared.show(model: model)
+        Dialogs.settings.present(title: "D2 Manager Settings", model: model) { _ in
+            SettingsView()
+        }
+    }
+
+    private func confirmDelete(_ instance: Instance) {
+        let alert = NSAlert()
+        alert.messageText = "Delete \(instance.name)?"
+        alert.informativeText = "This permanently removes the instance, its containers, and volumes. This cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { await model.delete(name: instance.name) }
+        }
     }
 }
-
-private struct LogID: Identifiable { let id: String }

@@ -2,8 +2,8 @@ import SwiftUI
 
 struct JobLogView: View {
     let jobID: String
+    let close: () -> Void
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     @State private var log = "Loading…"
 
     var body: some View {
@@ -15,7 +15,7 @@ struct JobLogView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack { Spacer(); Button("Close") { dismiss() } }
+            HStack { Spacer(); Button("Close") { close() } }
         }
         .padding(16)
         .frame(width: 520, height: 360)

@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct CreateInstanceView: View {
+    let close: () -> Void
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var version = ""
@@ -49,11 +49,11 @@ struct CreateInstanceView: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { close() }
                 Button("Create") {
                     Task {
                         await model.create(makeRequest())
-                        dismiss()
+                        close()
                     }
                 }
                 .keyboardShortcut(.defaultAction)

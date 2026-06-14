@@ -132,6 +132,22 @@ import Foundation
 
         #expect(model.recentJobs.filter { $0.id == "j-1" }.count == 1)
     }
+
+    // A cancelled in-flight request (e.g. SwiftUI tearing down the view's .task)
+    // must NOT surface as a "can't reach broker" error.
+    @Test func refreshIgnoresCancellation() async {
+        let fake = FakeBrokerClient()
+        fake.instancesResult = [TestInstances.running]
+        let model = makeModel(fake)
+        await model.refresh()                 // seeds instances, lastError nil
+        #expect(model.instances.count == 1)
+
+        fake.instancesThrowable = CancellationError()
+        await model.refresh()                 // request "cancelled"
+
+        #expect(model.lastError == nil)       // not reported as an error
+        #expect(model.instances.count == 1)   // existing data preserved
+    }
 }
 
 enum TestInstances {

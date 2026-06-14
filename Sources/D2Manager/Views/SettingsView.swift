@@ -44,28 +44,3 @@ struct SettingsView: View {
         model.persist(settings: settings)
     }
 }
-
-/// Hosts SettingsView in a standalone NSWindow (MenuBarExtra popovers can't push
-/// a separate Settings scene cleanly in an accessory app).
-@MainActor
-final class SettingsWindow {
-    static let shared = SettingsWindow()
-    private var window: NSWindow?
-
-    func show(model: AppModel) {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let hosting = NSHostingController(rootView: SettingsView().environment(model))
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "D2 Manager Settings"
-        window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
-        self.window = window
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-}

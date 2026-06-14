@@ -97,6 +97,18 @@ import Foundation
             _ = try await makeClient().instances(full: false)
         }
     }
+
+    // A cancelled URL request must surface as CancellationError, NOT as a
+    // BrokerError.transport "can't reach broker" — cancellation is normal when a
+    // SwiftUI .task is torn down, and must not be reported as the broker being down.
+    @Test func cancelledRequestThrowsCancellationNotTransport() async {
+        MockURLProtocol.handler = nil
+        MockURLProtocol.failure = { URLError(.cancelled) }
+        defer { MockURLProtocol.failure = nil }
+        await #expect(throws: CancellationError.self) {
+            _ = try await makeClient().instances(full: false)
+        }
+    }
 }
 
 // Serialized for the same reason as BrokerClientGetTests (shared mock static state).

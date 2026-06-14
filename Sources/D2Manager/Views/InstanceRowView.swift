@@ -5,7 +5,7 @@ struct InstanceRowView: View {
     let isBusy: Bool
     let onStart: () -> Void
     let onStop: () -> Void
-    let onReset: () -> Void
+    let onRestore: () -> Void
     let onDelete: () -> Void
 
     private var pillColor: Color {
@@ -14,6 +14,10 @@ struct InstanceRowView: View {
         case .partial: return .orange
         case .stopped: return .gray
         }
+    }
+
+    private var url: URL? {
+        instance.localhostUrl.flatMap(URL.init(string:))
     }
 
     var body: some View {
@@ -29,10 +33,6 @@ struct InstanceRowView: View {
                     Text("v\(v)").font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if let urlString = instance.localhostUrl, let url = URL(string: urlString) {
-                    Link(destination: url) { Image(systemName: "safari") }
-                        .help("Open \(urlString)")
-                }
             }
             HStack(spacing: 8) {
                 if instance.status == .stopped {
@@ -40,12 +40,35 @@ struct InstanceRowView: View {
                 } else {
                     Button("Stop", action: onStop)
                 }
-                Button("Reset", action: onReset)
                 Button("Delete", role: .destructive, action: onDelete)
+                Spacer()
+                moreMenu
             }
             .controlSize(.small)
             .disabled(isBusy)
         }
         .padding(.vertical, 4)
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            if let url {
+                Link(destination: url) { Label("Open in Browser", systemImage: "safari") }
+            }
+            Button { onRestore() } label: { Label("Restore DB…", systemImage: "arrow.counterclockwise") }
+            // Not yet exposed by the d2-broker API — placeholders until the broker
+            // gains backup and deploy-to-existing-instance endpoints.
+            Section("Requires broker support") {
+                Button { } label: { Label("Backup DB", systemImage: "tray.and.arrow.down") }
+                    .disabled(true)
+                Button { } label: { Label("Deploy WAR…", systemImage: "shippingbox.and.arrow.backward") }
+                    .disabled(true)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }

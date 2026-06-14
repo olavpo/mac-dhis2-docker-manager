@@ -32,6 +32,11 @@ struct BrokerClient: BrokerClientProtocol {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // The request was cancelled (e.g. a SwiftUI .task was torn down).
+            // That is not a broker-reachability failure — propagate as cancellation
+            // so callers can ignore it rather than show "can't reach broker".
+            throw CancellationError()
         } catch {
             throw BrokerError.transport((error as NSError).localizedDescription)
         }
