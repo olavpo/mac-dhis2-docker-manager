@@ -6,7 +6,7 @@ struct CreateInstanceView: View {
 
     @State private var name = ""
     @State private var version = ""
-    @State private var selectedSeed: String = ""   // "" = no seed
+    @State private var selectedSeed: String? = ""   // "" = no seed
     @State private var tomcat = "10"
     @State private var showAdvanced = false
     @State private var warUrl = ""
@@ -30,11 +30,9 @@ struct CreateInstanceView: View {
 
             TextField("version (e.g. 42, 2.42, 2.42.4 — blank = latest)", text: $version)
 
-            Picker("Seed", selection: $selectedSeed) {
-                Text("No seed (empty database)").tag("")
-                ForEach(model.seeds) { seed in
-                    Text(seed.path).tag(seed.path)
-                }
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Seed").font(.caption).foregroundStyle(.secondary)
+                SeedPicker(seeds: model.seeds, instanceName: nil, includeNoSeed: true, selection: $selectedSeed)
             }
 
             Picker("Tomcat", selection: $tomcat) {
@@ -69,7 +67,7 @@ struct CreateInstanceView: View {
         CreateInstanceRequest(
             name: name,
             version: version.isEmpty ? nil : version,
-            seed: selectedSeed.isEmpty ? nil : selectedSeed,
+            seed: (selectedSeed ?? "").isEmpty ? nil : selectedSeed,
             tomcat: tomcat,
             warUrl: warUrl.isEmpty ? nil : warUrl,
             warFile: warFile.isEmpty ? nil : warFile

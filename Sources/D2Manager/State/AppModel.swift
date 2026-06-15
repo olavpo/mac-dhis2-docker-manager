@@ -12,15 +12,22 @@ final class AppModel {
 
     private let client: BrokerClientProtocol
     private let poller: JobPoller
+    private let versionStore: UserDefaults?
+    private static let versionsKey = "versionsByName"
 
-    /// Cache of major versions keyed by instance name, populated by the expensive
-    /// `full=1` fetch (`refreshVersions`) and merged into light refreshes so the
-    /// version badge stays populated without re-querying flyway every refresh.
+    /// Cache of major versions keyed by instance name. Populated by the expensive
+    /// `full=1` fetch (`refreshVersions`), merged into light refreshes, and
+    /// persisted — so a known version keeps showing after an instance stops (the
+    /// broker can't read the version of a stopped DB) and across app launches.
     private var versionsByName: [String: String] = [:]
 
-    init(client: BrokerClientProtocol, poller: JobPoller) {
+    init(client: BrokerClientProtocol, poller: JobPoller, versionStore: UserDefaults? = nil) {
         self.client = client
         self.poller = poller
+        self.versionStore = versionStore
+        if let versionStore {
+            versionsByName = versionStore.dictionary(forKey: Self.versionsKey) as? [String: String] ?? [:]
+        }
     }
 
     var isBusy: Bool { activeJob != nil }
@@ -48,6 +55,7 @@ final class AppModel {
             versionsByName[instance.name] = instance.dhis2MajorVersion
         }
         instances = merging(versions: versionsByName, into: instances)
+        versionStore?.set(versionsByName, forKey: Self.versionsKey)
     }
 
     /// Light list refresh plus a version enrichment pass.
@@ -90,6 +98,8 @@ final class AppModel {
     func delete(name: String) async { await run { try await self.client.delete(name: name) } }
     func reset(name: String, seed: String) async { await run { try await self.client.reset(name: name, seed: seed) } }
     func create(_ request: CreateInstanceRequest) async { await run { try await self.client.create(request) } }
+    func backup(name: String, label: String? = nil) async { await run { try await self.client.backup(name: name, label: label) } }
+    func upgrade(name: String, _ request: UpgradeRequest) async { await run { try await self.client.upgrade(name: name, request) } }
 
     /// Shared mutation flow: kick off the op, then poll its job to terminal,
     /// reflecting progress in `activeJob`, recording the final job, and refreshing.
@@ -141,7 +151,7 @@ extension AppModel {
         let token = try? TokenResolver().resolve(settings: settings)
         let client = BrokerClient(baseURL: settings.baseURL, token: token)
         let poller = JobPoller(client: client)
-        return AppModel(client: client, poller: poller)
+        return AppModel(client: client, poller: poller, versionStore: defaults)
     }
 }
 
