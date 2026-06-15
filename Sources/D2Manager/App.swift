@@ -17,7 +17,7 @@ struct D2ManagerApp: App {
         MenuBarExtra("DHIS2", systemImage: model.isBusy ? "shippingbox.circle.fill" : "shippingbox") {
             MenuContentView()
                 .environment(model)
-                .frame(width: 360)
+                .frame(width: 480)
         }
         .menuBarExtraStyle(.window)
     }

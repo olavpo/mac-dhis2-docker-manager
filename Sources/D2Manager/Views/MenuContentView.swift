@@ -3,60 +3,37 @@ import AppKit
 
 struct MenuContentView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("showRecentActivity") private var showRecentActivity = false
+    @State private var refreshTick = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             header
+
             if let job = model.activeJob {
                 ActiveOperationView(job: job)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            } else if let error = model.lastError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassEffect(.regular.tint(.red.opacity(0.3)), in: .rect(cornerRadius: 12))
+                    .transition(.opacity)
             }
-            if let error = model.lastError, model.activeJob == nil {
-                Text(error).font(.caption).foregroundStyle(.red)
-            }
-            if model.instances.isEmpty {
-                Text("No instances.").font(.caption).foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(model.instances) { instance in
-                            InstanceRowView(
-                                instance: instance,
-                                isBusy: model.isBusy,
-                                onStart: { Task { await model.start(name: instance.name) } },
-                                onStop: { Task { await model.stop(name: instance.name) } },
-                                onRestore: { openRestore(instance) },
-                                onDelete: { confirmDelete(instance) }
-                            )
-                            Divider()
-                        }
-                    }
-                }
-                // A ScrollView has no intrinsic content height, so in the
-                // auto-sizing menu-bar window it collapses to ~one row unless given
-                // a minimum. minHeight keeps several instances visible; maxHeight
-                // caps it so a long list scrolls instead of growing without bound.
-                .frame(minHeight: 200, maxHeight: 320)
-            }
-            if !model.recentJobs.isEmpty {
-                Divider()
-                Text("Recent activity").font(.caption).foregroundStyle(.secondary)
-                ForEach(model.recentJobs.prefix(5)) { job in
-                    HStack {
-                        Image(systemName: job.status == .succeeded ? "checkmark.circle" : "exclamationmark.triangle")
-                            .foregroundStyle(job.status == .succeeded ? .green : .red)
-                        Text("\(job.op.rawValue.capitalized) \(job.instance)")
-                            .font(.caption)
-                        Spacer()
-                        if job.status != .succeeded {
-                            Button("Log") { openLog(job) }
-                                .controlSize(.mini)
-                        }
-                    }
-                }
-            }
+
+            instanceList
+
+            if !model.recentJobs.isEmpty { recentActivity }
+
             footer
         }
-        .padding(12)
+        .padding(14)
+        .tint(Theme.accent)
+        .animation(.smooth(duration: 0.3), value: model.activeJob)
+        .animation(.smooth(duration: 0.35), value: model.instances)
+        .animation(.smooth(duration: 0.3), value: model.lastError)
         .task {
             await model.refreshAll()
             await model.loadRecentJobs()
@@ -68,23 +45,105 @@ struct MenuContentView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            Text("DHIS2 Instances").font(.headline)
-            Spacer()
-            Button { Task { await model.refreshAll() } } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.plain)
-                .disabled(model.isBusy)
+    // MARK: Sections
+
+    @ViewBuilder private var instanceList: some View {
+        if model.instances.isEmpty {
+            VStack(spacing: 6) {
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 26)).foregroundStyle(.secondary)
+                Text("No instances yet").font(Theme.rowName)
+                Text("Create one to get started.").font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+        } else {
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(model.instances) { instance in
+                        InstanceRowView(
+                            instance: instance,
+                            isBusy: model.isBusy,
+                            onStart: { Task { await model.start(name: instance.name) } },
+                            onStop: { Task { await model.stop(name: instance.name) } },
+                            onRestore: { openRestore(instance) },
+                            onBackup: { Task { await model.backup(name: instance.name) } },
+                            onUpgrade: { openUpgrade(instance) },
+                            onDelete: { confirmDelete(instance) }
+                        )
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
+                }
+                .padding(.trailing, 14)   // keep the ⋯ button clear of the scroll bar
+            }
+            // A ScrollView has no intrinsic content height; in the auto-sizing
+            // menu-bar window it collapses without a minimum. minHeight keeps
+            // several rows visible; maxHeight scrolls a long (10+) list.
+            .frame(minHeight: 240, maxHeight: 480)
         }
     }
 
-    private var footer: some View {
-        HStack {
-            Button("New instance…") { openCreate() }.disabled(model.isBusy)
-            Spacer()
-            Button("Settings") { openSettings() }
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+    private var recentActivity: some View {
+        DisclosureGroup(isExpanded: $showRecentActivity) {
+            VStack(spacing: 3) {
+                ForEach(model.recentJobs.prefix(8)) { job in
+                    HStack(spacing: 7) {
+                        Image(systemName: job.status == .succeeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(job.status == .succeeded ? Theme.color(.running) : .red)
+                        Text("\(job.op.rawValue.capitalized) \(job.instance)").font(.caption)
+                        Spacer()
+                        if job.status != .succeeded {
+                            Button("Log") { openLog(job) }.controlSize(.mini)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            Text("Recent activity (\(model.recentJobs.count))")
+                .font(.caption.weight(.medium)).foregroundStyle(.secondary)
         }
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("DHIS2 Instances").font(Theme.title)
+                Text(summary).font(.caption2).foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
+            Spacer()
+            Button {
+                withAnimation(.spring(duration: 0.6)) { refreshTick += 1 }
+                Task { await model.refreshAll() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .rotationEffect(.degrees(Double(refreshTick) * 360))
+            }
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .disabled(model.isBusy)
+        }
+    }
+
+    private var summary: String {
+        let total = model.instances.count
+        guard total > 0 else { return "No instances" }
+        let running = model.instances.filter { $0.status == .running }.count
+        return "\(running) running · \(total) total"
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            Button { openCreate() } label: { Label("New instance", systemImage: "plus") }
+                .tint(Theme.accent)
+                .disabled(model.isBusy)
+            Spacer()
+            Button { openSettings() } label: { Image(systemName: "gearshape") }
+            Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
+        }
+        .buttonStyle(.glass)
         .controlSize(.small)
     }
 
@@ -103,6 +162,12 @@ struct MenuContentView: View {
     private func openRestore(_ instance: Instance) {
         Dialogs.restore.present(title: "Restore \(instance.name)", model: model) { close in
             ResetView(instance: instance, close: close)
+        }
+    }
+
+    private func openUpgrade(_ instance: Instance) {
+        Dialogs.upgrade.present(title: "Upgrade \(instance.name)", model: model) { close in
+            UpgradeView(instance: instance, close: close)
         }
     }
 
@@ -125,6 +190,9 @@ struct MenuContentView: View {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
+        // Raise above the MenuBarExtra popover so the alert isn't hidden behind it.
+        alert.window.level = .popUpMenu
+        NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
             Task { await model.delete(name: instance.name) }
         }

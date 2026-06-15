@@ -6,48 +6,64 @@ struct InstanceRowView: View {
     let onStart: () -> Void
     let onStop: () -> Void
     let onRestore: () -> Void
+    let onBackup: () -> Void
+    let onUpgrade: () -> Void
     let onDelete: () -> Void
-
-    private var pillColor: Color {
-        switch instance.status {
-        case .running: return .green
-        case .partial: return .orange
-        case .stopped: return .gray
-        }
-    }
 
     private var url: URL? {
         instance.localhostUrl.flatMap(URL.init(string:))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Circle().fill(pillColor).frame(width: 8, height: 8)
-                Text(instance.name).bold()
-                if instance.agentManaged {
-                    Text("agent").font(.caption2).padding(.horizontal, 4)
-                        .background(.tertiary, in: Capsule())
-                }
-                if let v = instance.dhis2MajorVersion {
-                    Text("v\(v)").font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
+        HStack(spacing: 8) {
+            StatusDot(status: instance.status)
+
+            Text(instance.name)
+                .font(Theme.rowName)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if instance.agentManaged {
+                Text("agent")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .glassEffect(.regular, in: .capsule)
             }
-            HStack(spacing: 8) {
+            if let v = instance.dhis2MajorVersion {
+                Text("v\(v)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Theme.accent.opacity(0.15), in: .capsule)
+                    .help("DHIS2 \(v)")
+            }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 4) {
                 if instance.status == .stopped {
-                    Button("Start", action: onStart)
+                    Button(action: onStart) { Label("Start", systemImage: "play.fill") }
+                        .tint(Theme.color(.running)).help("Start")
                 } else {
-                    Button("Stop", action: onStop)
+                    Button(action: onStop) { Label("Stop", systemImage: "stop.fill") }
+                        .help("Stop")
                 }
-                Button("Delete", role: .destructive, action: onDelete)
-                Spacer()
+                Button(role: .destructive, action: onDelete) { Label("Delete", systemImage: "trash") }
+                    .tint(.red).help("Delete")
                 moreMenu
             }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
             .controlSize(.small)
             .disabled(isBusy)
+            .fixedSize()
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
     }
 
     private var moreMenu: some View {
@@ -55,19 +71,15 @@ struct InstanceRowView: View {
             if let url {
                 Link(destination: url) { Label("Open in Browser", systemImage: "safari") }
             }
-            Button { onRestore() } label: { Label("Restore DB…", systemImage: "arrow.counterclockwise") }
-            // Not yet exposed by the d2-broker API — placeholders until the broker
-            // gains backup and deploy-to-existing-instance endpoints.
-            Section("Requires broker support") {
-                Button { } label: { Label("Backup DB", systemImage: "tray.and.arrow.down") }
-                    .disabled(true)
-                Button { } label: { Label("Deploy WAR…", systemImage: "shippingbox.and.arrow.backward") }
-                    .disabled(true)
+            Section {
+                Button { onRestore() } label: { Label("Restore DB…", systemImage: "arrow.counterclockwise") }
+                Button { onBackup() } label: { Label("Backup DB", systemImage: "tray.and.arrow.down") }
+                    .disabled(instance.status != .running)   // the DB must be running to dump
+                Button { onUpgrade() } label: { Label("Upgrade / Deploy WAR…", systemImage: "arrow.up.circle") }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "ellipsis")
         }
-        .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
     }
