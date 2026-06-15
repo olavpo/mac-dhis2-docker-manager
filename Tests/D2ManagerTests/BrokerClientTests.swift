@@ -160,5 +160,31 @@ import Foundation
         #expect(MockURLProtocol.lastRequest?.httpMethod == "DELETE")
         #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1")
     }
+
+    @Test func backupPostsLabelWhenGiven() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().backup(name: "demo1", label: "pre-upgrade")
+        #expect(MockURLProtocol.lastRequest?.httpMethod == "POST")
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/backup")
+        let body = try JSONSerialization.jsonObject(with: MockURLProtocol.lastBody!) as! [String: Any]
+        #expect(body["label"] as? String == "pre-upgrade")
+    }
+
+    @Test func backupSendsNoBodyWhenNoLabel() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().backup(name: "demo1", label: nil)
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/backup")
+        #expect(MockURLProtocol.lastBody == nil)   // no label -> no body
+    }
+
+    @Test func upgradePostsBody() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().upgrade(name: "demo1", UpgradeRequest(version: "2.42.4", backupFirst: true))
+        #expect(MockURLProtocol.lastRequest?.httpMethod == "POST")
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/upgrade")
+        let body = try JSONSerialization.jsonObject(with: MockURLProtocol.lastBody!) as! [String: Any]
+        #expect(body["version"] as? String == "2.42.4")
+        #expect(body["backup_first"] as? Bool == true)
+    }
 }
 }

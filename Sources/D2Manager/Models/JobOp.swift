@@ -1,3 +1,3 @@
 enum JobOp: String, Codable, Sendable {
-    case create, reset, start, stop, delete
+    case create, reset, start, stop, delete, backup, upgrade
 }

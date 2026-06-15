@@ -20,6 +20,19 @@ import Foundation
     @Test func jobOpDecodes() throws {
         #expect(try decodeRaw(JobOp.self, "\"create\"") == .create)
         #expect(try decodeRaw(JobOp.self, "\"delete\"") == .delete)
+        #expect(try decodeRaw(JobOp.self, "\"backup\"") == .backup)
+        #expect(try decodeRaw(JobOp.self, "\"upgrade\"") == .upgrade)
+    }
+
+    @Test func upgradeRequestOmitsNilsAndSnakeCases() throws {
+        let req = UpgradeRequest(version: "2.42", warUrl: "https://x/y.war", backupFirst: true)
+        let obj = try JSONSerialization.jsonObject(
+            with: BrokerCoders.encoder.encode(req)) as! [String: Any]
+        #expect(obj["version"] as? String == "2.42")
+        #expect(obj["war_url"] as? String == "https://x/y.war")
+        #expect(obj["backup_first"] as? Bool == true)
+        #expect(obj["war_file"] == nil)   // nil omitted
+        #expect(obj["tomcat"] == nil)     // nil omitted
     }
 }
 

@@ -103,6 +103,16 @@ struct BrokerClient: BrokerClientProtocol {
         return try await postJob(path: "instances/\(name)/reset", body: Body(seed: seed))
     }
 
+    func backup(name: String, label: String?) async throws -> Job {
+        struct Body: Encodable { let label: String }
+        // Omit the body entirely when there's no label (label is optional).
+        return try await postJob(path: "instances/\(name)/backup", body: label.map(Body.init))
+    }
+
+    func upgrade(name: String, _ request: UpgradeRequest) async throws -> Job {
+        try await postJob(path: "instances/\(name)/upgrade", body: request)
+    }
+
     func start(name: String) async throws -> Job {
         try await postJob(path: "instances/\(name)/start", body: Optional<CreateInstanceRequest>.none)
     }
