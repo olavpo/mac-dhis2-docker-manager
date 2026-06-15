@@ -1,13 +1,47 @@
-# Proposed d2-broker endpoints (for upgrade / backup)
+# d2-broker changes needed by D2Manager
 
-Features the **D2Manager** menu bar app wants but the `d2-broker` HTTP API
-([broker-api.md](./broker-api.md)) does not yet expose. This is a request list
-for the broker (`dhis2-docker-tools/bash-scripts-docker/d2-broker`), written in
-the same contract style as the existing API so it can be implemented directly.
+Changes the **D2Manager** menu bar app needs from the `d2-broker` HTTP API
+([broker-api.md](./broker-api.md)): one **bug fix** to an existing endpoint, and
+two **new endpoints**. Written in the same contract style as the existing API so
+they can be implemented directly. Broker source:
+`dhis2-docker-tools/bash-scripts-docker/d2-broker`.
 
-Until these exist, the app ships the corresponding actions as **disabled
-placeholders** in each instance's ⋯ menu (Backup DB, Deploy WAR…), and the
-"upgrade" path is unavailable.
+The new actions ship as **disabled placeholders** in each instance's ⋯ menu
+(Backup DB, Deploy WAR…) until the endpoints exist.
+
+---
+
+## 0. Bug: stopped instances disappear from `GET /instances`
+
+**Symptom:** stopping an instance removes it from the list entirely instead of
+showing it as `stopped`. It only reappears when started again (e.g. from the CLI).
+
+**Root cause:** `stop` runs `d2-shutdown` → `docker compose down`, which *removes*
+the instance's containers. But `list_instances()` enumerates instances from
+`docker ps -a` (matching `<name>-tomcat-1` / `<name>-db-1`). With the containers
+gone, the instance is no longer enumerated — even though its directory under
+`$DHIS2_BASE/<name>/` still exists (which is what `require_instance` treats as
+"exists"). So the documented `stopped` status is only reachable for *exited*
+containers (e.g. `compose stop`), never via the `stop` endpoint, which uses `down`.
+
+**Recommended fix:** make `list_instances()` enumerate by **instance directory**
+(`$DHIS2_BASE/*/` — the same source of truth `require_instance` already uses) and
+derive status by probing containers:
+
+- tomcat + db both running → `running`
+- exactly one running → `partial`
+- containers exited or absent → `stopped`
+
+This keeps `stop = docker compose down` (frees container resources) while still
+listing the instance as `stopped`. `http_port` / `pg_port` / `devnet_*` are
+`null` when no container exists — the app already handles null ports.
+
+**Alternative:** change `stop` to `docker compose stop` (containers remain in the
+exited state) so `docker ps -a` keeps listing them. Simpler, but leaves
+containers around and changes the documented stop semantics.
+
+**App side:** no change — the app renders exactly what `GET /instances` returns,
+and cannot see directory-only instances over the loopback API.
 
 ---
 
