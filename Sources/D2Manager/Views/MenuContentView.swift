@@ -47,18 +47,23 @@ struct MenuContentView: View {
 
     // MARK: Sections
 
-    @ViewBuilder private var instanceList: some View {
-        if model.instances.isEmpty {
-            VStack(spacing: 6) {
-                Image(systemName: "shippingbox")
-                    .font(.system(size: 26)).foregroundStyle(.secondary)
-                Text("No instances yet").font(Theme.rowName)
-                Text("Create one to get started.").font(.caption).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-        } else {
-            ScrollView {
+    private var instanceList: some View {
+        // Always a fixed-min-height scroll area, even when empty. The MenuBarExtra
+        // popover sizes itself when it opens — at which point the async refresh
+        // hasn't populated `instances` yet. If the empty state were short, the
+        // window would open tiny and never grow once instances arrive. Reserving
+        // the height here keeps the window the right size from the first frame.
+        ScrollView {
+            if model.instances.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 26)).foregroundStyle(.secondary)
+                    Text("No instances yet").font(Theme.rowName)
+                    Text("Create one to get started.").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            } else {
                 VStack(spacing: 6) {
                     ForEach(model.instances) { instance in
                         InstanceRowView(
@@ -76,11 +81,8 @@ struct MenuContentView: View {
                 }
                 .padding(.trailing, 14)   // keep the ⋯ button clear of the scroll bar
             }
-            // A ScrollView has no intrinsic content height; in the auto-sizing
-            // menu-bar window it collapses without a minimum. minHeight keeps
-            // several rows visible; maxHeight scrolls a long (10+) list.
-            .frame(minHeight: 240, maxHeight: 480)
         }
+        .frame(minHeight: 240, maxHeight: 480)
     }
 
     private var recentActivity: some View {
