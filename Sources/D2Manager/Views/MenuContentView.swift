@@ -74,6 +74,7 @@ struct MenuContentView: View {
                             onRestore: { openRestore(instance) },
                             onBackup: { Task { await model.backup(name: instance.name) } },
                             onUpgrade: { openUpgrade(instance) },
+                            onSetMemory: { openMemory(instance) },
                             onDelete: { confirmDelete(instance) }
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -170,6 +171,12 @@ struct MenuContentView: View {
     private func openUpgrade(_ instance: Instance) {
         Dialogs.upgrade.present(title: "Upgrade \(instance.name)", model: model) { close in
             UpgradeView(instance: instance, close: close)
+        }
+    }
+
+    private func openMemory(_ instance: Instance) {
+        Dialogs.memory.present(title: "Set memory — \(instance.name)", model: model) { close in
+            MemoryView(instance: instance, close: close)
         }
     }
 

@@ -11,6 +11,7 @@ enum Fixtures {
       "devnet_url": "http://dhis2-school-ind-test:8080",
       "devnet_db": "dhis2-school-ind-test-db:5432",
       "agent_managed": false,
+      "analytics": "doris",
       "dhis2_major_version": "42"
     }
     """
@@ -73,6 +74,27 @@ enum Fixtures {
         "devnet_url": "http://dhis2-agent-test1:8080",
         "devnet_db": "dhis2-agent-test1-db:5432",
         "agent_managed": true
+      }
+    }
+    """
+
+    /// A succeeded backup job: `result` is a GET /seeds element, not an instance.
+    static let jobBackupSucceededJSON = """
+    {
+      "id": "j-9z8y7x6w",
+      "op": "backup",
+      "instance": "demo1",
+      "status": "succeeded",
+      "created_at": "2026-06-14T09:14:01+00:00",
+      "started_at": "2026-06-14T09:14:02+00:00",
+      "finished_at": "2026-06-14T09:15:30+00:00",
+      "exit_code": 0,
+      "error": null,
+      "result": {
+        "path": "backups/demo1/demo1_20260614-091401_v42.sql.gz",
+        "source": "backups",
+        "size_bytes": 928374829,
+        "modified": "2026-06-14T09:14:01+00:00"
       }
     }
     """

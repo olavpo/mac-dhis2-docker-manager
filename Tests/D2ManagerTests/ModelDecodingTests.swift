@@ -22,6 +22,7 @@ import Foundation
         #expect(try decodeRaw(JobOp.self, "\"delete\"") == .delete)
         #expect(try decodeRaw(JobOp.self, "\"backup\"") == .backup)
         #expect(try decodeRaw(JobOp.self, "\"upgrade\"") == .upgrade)
+        #expect(try decodeRaw(JobOp.self, "\"memory\"") == .memory)
     }
 
     @Test func upgradeRequestOmitsNilsAndSnakeCases() throws {
@@ -53,6 +54,7 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(i.devnetUrl == "http://dhis2-school-ind-test:8080")
         #expect(i.devnetDb == "dhis2-school-ind-test-db:5432")
         #expect(i.agentManaged == false)
+        #expect(i.analytics == "doris")
         #expect(i.dhis2MajorVersion == "42")
         #expect(i.id == "school-ind-test")
     }
@@ -62,6 +64,7 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(i.httpPort == nil)
         #expect(i.localhostUrl == nil)
         #expect(i.dhis2MajorVersion == nil)
+        #expect(i.analytics == nil)
         #expect(i.agentManaged == true)
     }
 
@@ -98,6 +101,16 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(j.result?.status == .running)
     }
 
+    // A backup job's `result` is a GET /seeds element. It must not fail Job
+    // decoding (which would break the whole jobs list and job polling) — the
+    // non-instance result decodes leniently to nil.
+    @Test func backupJobWithSeedResultDecodes() throws {
+        let j = try BrokerCoders.decoder.decode(Job.self, from: Fixtures.data(Fixtures.jobBackupSucceededJSON))
+        #expect(j.op == .backup)
+        #expect(j.status == .succeeded)
+        #expect(j.result == nil)
+    }
+
     @Test func createRequestOmitsNilsAndSnakeCases() throws {
         let req = CreateInstanceRequest(name: "demo1", version: "2.42", warUrl: "https://x/y.war")
         let data = try BrokerCoders.encoder.encode(req)
@@ -107,5 +120,19 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(obj["war_url"] as? String == "https://x/y.war")
         #expect(obj["seed"] == nil)        // nil omitted
         #expect(obj["tomcat"] == nil)      // nil omitted
+        #expect(obj["memory"] == nil)      // nil omitted
+        #expect(obj["analytics"] == nil)   // nil omitted
+    }
+
+    @Test func createRequestEncodesNewOptions() throws {
+        let req = CreateInstanceRequest(
+            name: "demo1", version: "42", memory: "2g",
+            httpPort: 9010, pgPort: 5433, analytics: "doris")
+        let obj = try JSONSerialization.jsonObject(
+            with: BrokerCoders.encoder.encode(req)) as! [String: Any]
+        #expect(obj["memory"] as? String == "2g")
+        #expect(obj["http_port"] as? Int == 9010)
+        #expect(obj["pg_port"] as? Int == 5433)
+        #expect(obj["analytics"] as? String == "doris")
     }
 }

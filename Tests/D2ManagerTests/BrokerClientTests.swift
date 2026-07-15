@@ -177,6 +177,15 @@ import Foundation
         #expect(MockURLProtocol.lastBody == nil)   // no label -> no body
     }
 
+    @Test func setMemoryPostsBody() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().setMemory(name: "demo1", memory: "2g")
+        #expect(MockURLProtocol.lastRequest?.httpMethod == "POST")
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/memory")
+        let body = try JSONSerialization.jsonObject(with: MockURLProtocol.lastBody!) as! [String: Any]
+        #expect(body["memory"] as? String == "2g")
+    }
+
     @Test func upgradePostsBody() async throws {
         MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
         _ = try await makeClient().upgrade(name: "demo1", UpgradeRequest(version: "2.42.4", backupFirst: true))

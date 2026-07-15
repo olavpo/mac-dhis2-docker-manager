@@ -113,6 +113,11 @@ struct BrokerClient: BrokerClientProtocol {
         try await postJob(path: "instances/\(name)/upgrade", body: request)
     }
 
+    func setMemory(name: String, memory: String) async throws -> Job {
+        struct Body: Encodable { let memory: String }
+        return try await postJob(path: "instances/\(name)/memory", body: Body(memory: memory))
+    }
+
     func start(name: String) async throws -> Job {
         try await postJob(path: "instances/\(name)/start", body: Optional<CreateInstanceRequest>.none)
     }

@@ -100,6 +100,7 @@ final class AppModel {
     func create(_ request: CreateInstanceRequest) async { await run { try await self.client.create(request) } }
     func backup(name: String, label: String? = nil) async { await run { try await self.client.backup(name: name, label: label) } }
     func upgrade(name: String, _ request: UpgradeRequest) async { await run { try await self.client.upgrade(name: name, request) } }
+    func setMemory(name: String, memory: String) async { await run { try await self.client.setMemory(name: name, memory: memory) } }
 
     /// Shared mutation flow: kick off the op, then poll its job to terminal,
     /// reflecting progress in `activeJob`, recording the final job, and refreshing.

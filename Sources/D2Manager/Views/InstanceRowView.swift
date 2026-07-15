@@ -8,6 +8,7 @@ struct InstanceRowView: View {
     let onRestore: () -> Void
     let onBackup: () -> Void
     let onUpgrade: () -> Void
+    let onSetMemory: () -> Void
     let onDelete: () -> Void
 
     private var url: URL? {
@@ -30,6 +31,15 @@ struct InstanceRowView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .glassEffect(.regular, in: .capsule)
+            }
+            if instance.analytics == "doris" {
+                Text("doris")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .glassEffect(.regular, in: .capsule)
+                    .help("Dedicated Apache Doris analytics database")
             }
             if let v = instance.dhis2MajorVersion {
                 Text("v\(v)")
@@ -76,6 +86,7 @@ struct InstanceRowView: View {
                 Button { onBackup() } label: { Label("Backup DB", systemImage: "tray.and.arrow.down") }
                     .disabled(instance.status != .running)   // the DB must be running to dump
                 Button { onUpgrade() } label: { Label("Upgrade / Deploy WAR…", systemImage: "arrow.up.circle") }
+                Button { onSetMemory() } label: { Label("Set Memory…", systemImage: "memorychip") }
             }
         } label: {
             Image(systemName: "ellipsis")

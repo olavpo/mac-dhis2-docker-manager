@@ -6,8 +6,8 @@ build a client against. Read it first if you are wiring up a menu bar app,
 web dashboard, Electron/Tauri shell, or any other client that talks to
 `d2-broker`.
 
-The broker source is `bash-scripts-docker/d2-broker` (845 lines, Python 3,
-stdlib only); this document tracks what it actually does.
+The broker source is `bash-scripts-docker/d2-broker` (Python 3, stdlib
+only); this document tracks what it actually does.
 
 ---
 
@@ -63,7 +63,7 @@ an `error` message; fetch `/jobs/<id>/log` for the full output.
 ## 3. Job model
 
 Anything that changes state on disk or Docker (create, reset, start, stop,
-delete) returns **202 with a job**:
+delete, backup, upgrade) returns **202 with a job**:
 
 ```json
 {
@@ -97,7 +97,9 @@ active job** gets `409`.
 
 For `create`, `reset`, and `start`, the job's `result` on success is the
 same shape as one element of `GET /instances` — UIs can use this to
-refresh their cached instance without a follow-up call.
+refresh their cached instance without a follow-up call. `upgrade` likewise
+returns a `GET /instances` element (with best-effort `dhis2_major_version`);
+`backup` returns a `GET /seeds` element.
 
 ### Polling pattern (recommended)
 
@@ -140,6 +142,7 @@ list view, fetch per-instance on demand).
       "devnet_url": "http://dhis2-school-ind-test:8080",
       "devnet_db":  "dhis2-school-ind-test-db:5432",
       "agent_managed": false,
+      "analytics": null,                 // "doris" if created with an analytics backend
       "dhis2_major_version": "42"        // only when full=1
     }
   ]
@@ -158,6 +161,7 @@ Field semantics:
 | `devnet_url` | string \| null | Tomcat URL inside the shared `dev-net` Docker network. `null` if not attached. |
 | `devnet_db` | string \| null | Postgres `host:port` inside `dev-net` (creds always `dhis`/`dhis`/`dhis2`). |
 | `agent_managed` | bool | `name` starts with `agent-`. UI can render an "agent" badge. |
+| `analytics` | string \| null | `"doris"` if the instance was created with a dedicated analytics database, else `null`. Read from the instance `.env`, so it is accurate for stopped instances too. |
 | `dhis2_major_version` | string \| null | e.g. `"42"`. Present only when `full=1`. |
 
 ### `POST /instances`
@@ -171,9 +175,13 @@ Body:
   "name": "agent-test1",         // required
   "version": "2.42.4",           // optional; latest stable if you pass "42" or "2.42"
   "seed": "sl-demo-v42.sql.gz",  // optional; see Seed forms below
-  "tomcat": "10",                // optional; "9" or "10", default "10"
+  "tomcat": "10",                // optional; "9"/"10". Auto-selected from version if omitted
+  "memory": "4g",                // optional; Tomcat max heap (-Xmx), default 4g
+  "http_port": 9010,             // optional; host HTTP port. Auto-selected (free) if omitted
+  "pg_port": 5433,               // optional; host Postgres port. Auto-selected (free) if omitted
   "war_url":  "https://...",     // optional; admin only
-  "war_file": "/abs/path.war"    // optional; admin only
+  "war_file": "/abs/path.war",   // optional; admin only
+  "analytics": "doris"           // optional; dedicated analytics DB, requires version >= 42
 }
 ```
 
@@ -184,11 +192,24 @@ Validation:
 - `version` matches `^[0-9][0-9.]{0,15}$`. Major-only forms (`42`, `2.42`)
   resolve to the latest stable from `releases.dhis2.org` at job-run time.
 - `tomcat` is the string `"9"` or `"10"`.
+- `tomcat` is auto-selected from `version` when omitted (DHIS2 ≤ 2.41 → `9`,
+  ≥ 2.42 → `10`). Passing a `tomcat` that conflicts with `version` fails the job.
+- `memory` matches `^[0-9]+[mMgG]$` (e.g. `512m`, `2g`); default `4g` when
+  omitted. Agent scope: heap above `D2_BROKER_MAX_AGENT_MEMORY` (default `8g`)
+  → `400`.
+- `http_port` / `pg_port` are integers `1024–65535` (else `400`). Omitted →
+  the broker auto-selects a port not used or reserved by any other instance
+  (running or stopped). An explicit port already in use/reserved fails the job.
 - `war_url` must be `http://` or `https://`.
+- `analytics` must be `"doris"` and requires a `version` with DHIS2 major
+  ≥ 42 (→ `400` otherwise); combining it with `war_url`/`war_file` → `400`.
+  The instance gets a per-instance Apache Doris container (~5.5 GB RAM).
 - Agent scope:
   - `war_url` / `war_file` → `403`.
   - `seed` may only be a relative path inside `$DHIS2_BASE/_seeds/`.
   - At most `D2_BROKER_MAX_AGENT_INSTANCES` (default 5) `agent-*`
+    instances; cap exceeded → `409`.
+  - At most `D2_BROKER_MAX_AGENT_DORIS` (default 1) Doris-enabled
     instances; cap exceeded → `409`.
 - An existing instance directory (`$DHIS2_BASE/<name>/`) or running
   container with the same name → `409`.
@@ -210,7 +231,18 @@ Restore the DB from a seed. Body:
 To "reset to empty" you delete and re-create instead — `reset` always
 takes a seed.
 
-Returns **202 + job**.
+Returns **202 + job**. Returns **400** if the seed's filename carries a
+`_vNN` version token (all backups made by the broker do, and the curated
+seeds follow the convention) that is **newer** than the instance's current
+DHIS2 major — restoring a newer database than the deployed WAR bricks the
+instance (Flyway can't downgrade). Older seeds are fine; Flyway migrates
+them up on next boot. The guard is skipped when either side is unknown
+(no token in the filename, or the instance's DB is not running).
+
+On restore the broker ensures a known `local_admin` / `district` superuser
+(`ALL` authority) exists regardless of the restored database's own `admin`;
+it is stripped from backups (`POST /instances/<name>/backup`), so dumps never
+contain it. The same `local_admin` is ensured on create.
 
 ### `POST /instances/<name>/start` and `POST /instances/<name>/stop`
 
@@ -226,6 +258,81 @@ survive `docker compose down`).
 
 Stops, removes containers + volumes, deletes the instance directory.
 Irreversible. Returns **202 + job**.
+
+### `POST /instances/<name>/backup`
+
+Create a `pg_dump` backup of the instance's database. **Admin only** (agent
+token → `403`). Returns **202 + job**.
+
+Body (all optional):
+
+```json
+{ "label": "pre-upgrade" }   // folded into the backup filename
+```
+
+- `label` matches `^[a-z0-9][a-z0-9_-]{0,39}$`.
+- The DB must be running; on a stopped instance the job `fail`s with a
+  "start the instance first" message.
+
+On success, `result` is a `GET /seeds`-shaped element for the new backup, so
+it can be offered immediately as a restore source:
+
+```json
+{
+  "path": "backups/<name>/<name>_20260614-091401_v42.sql.gz",
+  "source": "backups",
+  "size_bytes": 928374829,
+  "modified": "2026-06-14T09:14:01+00:00"
+}
+```
+
+### `POST /instances/<name>/upgrade`
+
+Swap the running WAR (version bump or specific WAR), preserving the DB and
+volumes. Returns **202 + job**.
+
+Body (exactly one of `version` / `war_url` / `war_file` required):
+
+```json
+{
+  "version":  "2.42.4",
+  "war_url":  "https://…/dhis.war",   // admin only
+  "war_file": "/abs/path.war",        // admin only
+  "tomcat":   "10",                   // optional
+  "backup_first": true                // optional, default true
+}
+```
+
+- `version` matches `^[0-9][0-9.]{0,15}$`; major-only resolves at job-run time.
+- Version transitions: downgrades and major-version skips are rejected with
+  `400`; same-major and one-major-up are allowed. (Not enforced for
+  `war_url`/`war_file`, whose version can't be read in advance.)
+- `tomcat` (`"9"`/`"10"`): changing the servlet container is **not yet
+  supported** — a value differing from the instance's current Tomcat (or that
+  can't be matched) → `400`.
+- `backup_first` (default `true`) prepends a `d2-db-backup` step; its path is
+  written to the job log.
+
+On success, `result` is the `GET /instances` element with a best-effort
+`dhis2_major_version`. Because Flyway migrates asynchronously on Tomcat boot,
+this may still read the pre-upgrade major; re-poll `GET /instances?full=1`
+once the instance is back up to observe the migrated version.
+
+### `POST /instances/<name>/memory`
+
+Set the Tomcat max heap (`-Xmx`) on an existing instance and recreate the
+Tomcat container (DB and volumes preserved). Returns **202 + job**.
+
+Body:
+
+```json
+{ "memory": "2g" }   // required; matches ^[0-9]+[mMgG]$
+```
+
+- `memory` is required; `^[0-9]+[mMgG]$` (e.g. `512m`, `2g`).
+- Agent scope: heap above `D2_BROKER_MAX_AGENT_MEMORY` (default `8g`) → `400`.
+- `result` on success is the `GET /instances` element (like `start`). The
+  instance restarts as Tomcat is recreated.
 
 ### `GET /seeds`
 
@@ -266,7 +373,7 @@ whose `instance` starts with `agent-`.
 ```json
 {
   "id": "j-1a2b3c4d",
-  "op": "create",                        // create | reset | start | stop | delete
+  "op": "create",                        // create | reset | start | stop | delete | backup | upgrade | memory
   "instance": "agent-test1",
   "status": "running",                   // queued | running | succeeded | failed | interrupted
   "created_at":  "2026-06-13T09:14:01+00:00",
@@ -274,14 +381,16 @@ whose `instance` starts with `agent-`.
   "finished_at": null,
   "exit_code":   null,
   "error":       null,
-  "result":      null,                   // populated on success for create/reset/start
+  "result":      null,                   // on success: GET /instances element (create/reset/start/upgrade) or GET /seeds element (backup)
   "log_tail":    "...last 20 lines of subprocess output..."
 }
 ```
 
 `log_tail` is appended to the job object on the single-job endpoint only
 (not on `GET /jobs`). On `succeeded`, `result` for `create` / `reset` /
-`start` is the same shape as a `GET /instances` element.
+`start` / `upgrade` is the same shape as a `GET /instances` element
+(`upgrade` adds a best-effort `dhis2_major_version`); for `backup` it is a
+`GET /seeds` element.
 
 ### `GET /jobs/<id>/log`
 
@@ -316,6 +425,9 @@ detected from the suffix.
 | `tomcat` | exactly `"9"` or `"10"` (strings, not ints) |
 | `war_url` | starts with `http://` or `https://` |
 | Seed filename | ends with `.sql`, `.sql.gz`, or `.pgc` |
+| `label` (backup) | `^[a-z0-9][a-z0-9_-]{0,39}$` |
+| `backup_first` | boolean, default `true` |
+| `memory` | `^[0-9]+[mMgG]$` (e.g. `512m`, `2g`); agent heap capped by `D2_BROKER_MAX_AGENT_MEMORY` (default `8g`) |
 
 Show validation errors from the broker verbatim — they are concise and
 already user-facing.
@@ -354,7 +466,8 @@ For the activity drawer / job feed:
 
 For creation:
 
-- Default `tomcat` to `"10"` and let advanced users override.
+- Leave `tomcat` unset when you pass a `version` — the broker auto-selects the
+  compatible Tomcat. Only set it for the no-version (empty-instance) case.
 - Show recent versions as suggestions but allow free-text entry (because
   major-only resolves at job-run time).
 - Show available seeds from `GET /seeds`; include "No seed (empty

@@ -58,6 +58,7 @@ struct ActiveOperationView: View {
         case .delete: "Deleting"
         case .backup: "Backing up"
         case .upgrade: "Upgrading"
+        case .memory: "Resizing memory of"
         }
     }
 }

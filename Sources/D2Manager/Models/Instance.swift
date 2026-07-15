@@ -7,6 +7,8 @@ struct Instance: Codable, Sendable, Identifiable, Equatable {
     var devnetUrl: String?
     var devnetDb: String?
     var agentManaged: Bool
+    /// `"doris"` if the instance was created with a dedicated analytics DB.
+    var analytics: String?
     var dhis2MajorVersion: String?
 
     var id: String { name }

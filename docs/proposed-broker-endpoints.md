@@ -1,5 +1,10 @@
 # d2-broker changes needed by D2Manager
 
+> **Status (2026-07-15): implemented.** The stopped-instances listing fix,
+> `POST /instances/<name>/backup`, and `POST /instances/<name>/upgrade` have all
+> shipped in the broker (see [broker-api.md](./broker-api.md)), and D2Manager
+> uses them. Kept for historical context.
+
 Changes the **D2Manager** menu bar app needs from the `d2-broker` HTTP API
 ([broker-api.md](./broker-api.md)): one **bug fix** to an existing endpoint, and
 two **new endpoints**. Written in the same contract style as the existing API so
