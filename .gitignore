@@ -8,3 +8,8 @@ Package.resolved
 
 # macOS
 .DS_Store
+
+# Local agent/editor scratch
+.claude/settings.local.json
+Claude outputs/
+docs/superpowers/

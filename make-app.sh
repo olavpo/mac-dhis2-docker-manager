@@ -22,7 +22,7 @@ cat > "$APP_DIR/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key><string>org.dhis2.d2manager</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>LSUIElement</key><true/>
 </dict>
 </plist>

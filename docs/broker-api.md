@@ -1,10 +1,10 @@
 # d2-broker HTTP API — reference for UI developers
 
-A UI-focused companion to [broker.md](./broker.md). That document explains
-why the broker exists and how it is operated; this one is the contract you
-build a client against. Read it first if you are wiring up a menu bar app,
-web dashboard, Electron/Tauri shell, or any other client that talks to
-`d2-broker`.
+A UI-focused companion to the `d2-broker` operator documentation. That
+documentation explains why the broker exists and how it is run; this
+document is the contract you build a client against. Read it if you are
+wiring up a menu bar app, web dashboard, Electron/Tauri shell, or any other
+client that talks to `d2-broker`.
 
 The broker source is `bash-scripts-docker/d2-broker` (Python 3, stdlib
 only); this document tracks what it actually does.
@@ -338,7 +338,7 @@ Body:
 
 ```json
 {
-  "seeds_dir": "/Users/olavpo/dhis2/_seeds",
+  "seeds_dir": "/Users/you/dhis2/_seeds",
   "seeds": [
     {
       "path": "sl-demo-v42.sql.gz",
