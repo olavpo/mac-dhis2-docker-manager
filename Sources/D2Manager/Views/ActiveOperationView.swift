@@ -5,6 +5,7 @@ import SwiftUI
 struct ActiveOperationView: View {
     let job: Job
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.windowIsVisible) private var windowIsVisible
     @State private var sweep = false
 
     var body: some View {
@@ -27,7 +28,8 @@ struct ActiveOperationView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular.tint(Theme.accent.opacity(0.55)), in: .rect(cornerRadius: 14))
         .overlay {
-            if !reduceMotion {
+            // Only while on screen — see `EnvironmentValues.windowIsVisible`.
+            if shouldSweep {
                 GeometryReader { geo in
                     LinearGradient(
                         colors: [.clear, .white.opacity(0.22), .clear],
@@ -40,11 +42,17 @@ struct ActiveOperationView: View {
             }
         }
         .clipShape(.rect(cornerRadius: 14))
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
-                sweep = true
-            }
+        .onAppear(perform: animate)
+        .onChange(of: windowIsVisible) { animate() }
+    }
+
+    private var shouldSweep: Bool { !reduceMotion && windowIsVisible }
+
+    private func animate() {
+        sweep = false
+        guard shouldSweep else { return }
+        withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
+            sweep = true
         }
     }
 

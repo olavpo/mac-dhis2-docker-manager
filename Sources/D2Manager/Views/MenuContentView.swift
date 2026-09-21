@@ -31,6 +31,7 @@ struct MenuContentView: View {
         }
         .padding(14)
         .tint(Theme.accent)
+        .trackingWindowVisibility()
         .animation(.smooth(duration: 0.3), value: model.activeJob)
         .animation(.smooth(duration: 0.35), value: model.instances)
         .animation(.smooth(duration: 0.3), value: model.lastError)

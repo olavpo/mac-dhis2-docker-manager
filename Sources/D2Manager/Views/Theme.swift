@@ -22,12 +22,17 @@ enum Theme {
 struct StatusDot: View {
     let status: InstanceStatus
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.windowIsVisible) private var windowIsVisible
     @State private var pulse = false
 
     var body: some View {
         let color = Theme.color(status)
         ZStack {
-            if status == .running && !reduceMotion {
+            // The ring exists only while the window is on screen. Removing the
+            // view also removes its repeatForever animation, which would otherwise
+            // keep the closed popover re-rendering every frame (see
+            // `EnvironmentValues.windowIsVisible`).
+            if shouldPulse {
                 Circle()
                     .stroke(color, lineWidth: 1.5)
                     .scaleEffect(pulse ? 2.4 : 1)
@@ -40,11 +45,16 @@ struct StatusDot: View {
         .frame(width: 9, height: 9)
         .onAppear(perform: animate)
         .onChange(of: status) { animate() }
+        .onChange(of: windowIsVisible) { animate() }
+    }
+
+    private var shouldPulse: Bool {
+        status == .running && !reduceMotion && windowIsVisible
     }
 
     private func animate() {
         pulse = false
-        guard status == .running, !reduceMotion else { return }
+        guard shouldPulse else { return }
         withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) {
             pulse = true
         }
