@@ -11,7 +11,16 @@ extension EnvironmentValues {
     /// ~20% CPU, indefinitely, on a ProMotion display. Views that run indefinite
     /// animations must therefore stop them (ideally by removing the animated
     /// view) whenever this is `false`.
-    @Entry var windowIsVisible: Bool = true
+    var windowIsVisible: Bool {
+        get { self[WindowIsVisibleKey.self] }
+        set { self[WindowIsVisibleKey.self] = newValue }
+    }
+}
+
+/// A plain EnvironmentKey instead of `@Entry`: that macro's plugin ships only
+/// with full Xcode, so `@Entry` breaks builds with the Command Line Tools.
+private struct WindowIsVisibleKey: EnvironmentKey {
+    static let defaultValue = true
 }
 
 extension View {
