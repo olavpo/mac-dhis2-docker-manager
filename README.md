@@ -48,9 +48,11 @@ the menu, so the popover can be closed while an upgrade runs.
    The script builds a release binary and assembles `D2Manager.app`. The bundle
    is marked `LSUIElement`, so the app has no Dock icon and no main window.
 
-2. Move `D2Manager.app` to `/Applications`.
+2. Move `D2Manager.app` to `/Applications`, or run `./make-app.sh --install`,
+   which builds, copies it there and relaunches it.
 
-3. Add it to Login Items if you want it to start with the machine.
+3. To start it with the machine (when the broker's launchd agent also starts),
+   turn on **Launch at login** in Settings. The app must be in `/Applications`.
 
 For development, `swift run` starts the app directly and `swift test` runs the
 test suite.
