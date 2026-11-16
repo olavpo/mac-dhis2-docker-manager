@@ -186,6 +186,22 @@ import Foundation
         #expect(body["memory"] as? String == "2g")
     }
 
+    @Test func analyticsPostsLastYears() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().analytics(name: "demo1", lastYears: 2)
+        #expect(MockURLProtocol.lastRequest?.httpMethod == "POST")
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/analytics")
+        let body = try JSONSerialization.jsonObject(with: MockURLProtocol.lastBody!) as! [String: Any]
+        #expect(body["last_years"] as? Int == 2)
+    }
+
+    @Test func analyticsAllYearsSendsNoBody() async throws {
+        MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
+        _ = try await makeClient().analytics(name: "demo1", lastYears: nil)
+        #expect(MockURLProtocol.lastRequest?.url?.path == "/instances/demo1/analytics")
+        #expect(MockURLProtocol.lastBody == nil)   // all years -> no body
+    }
+
     @Test func upgradePostsBody() async throws {
         MockURLProtocol.handler = { _ in (202, self.jobEnvelope()) }
         _ = try await makeClient().upgrade(name: "demo1", UpgradeRequest(version: "2.42.4", backupFirst: true))

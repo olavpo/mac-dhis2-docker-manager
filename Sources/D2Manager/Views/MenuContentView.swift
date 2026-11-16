@@ -76,6 +76,7 @@ struct MenuContentView: View {
                             onBackup: { Task { await model.backup(name: instance.name) } },
                             onUpgrade: { openUpgrade(instance) },
                             onSetMemory: { openMemory(instance) },
+                            onRunAnalytics: { openAnalytics(instance) },
                             onDelete: { confirmDelete(instance) }
                         )
                         .transition(.move(edge: .leading).combined(with: .opacity))
@@ -95,7 +96,7 @@ struct MenuContentView: View {
                         Image(systemName: job.status == .succeeded ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(job.status == .succeeded ? Theme.color(.running) : .red)
-                        Text("\(job.op.rawValue.capitalized) \(job.instance)").font(.caption)
+                        Text("\(job.op.title) \(job.instance)").font(.caption)
                         Spacer()
                         if job.status != .succeeded {
                             Button("Log") { openLog(job) }.controlSize(.mini)
@@ -178,6 +179,12 @@ struct MenuContentView: View {
     private func openMemory(_ instance: Instance) {
         Dialogs.memory.present(title: "Set memory — \(instance.name)", model: model) { close in
             MemoryView(instance: instance, close: close)
+        }
+    }
+
+    private func openAnalytics(_ instance: Instance) {
+        Dialogs.analytics.present(title: "Analytics — \(instance.name)", model: model) { close in
+            AnalyticsView(instance: instance, close: close)
         }
     }
 

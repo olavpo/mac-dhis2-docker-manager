@@ -18,12 +18,16 @@ The menu bar icon opens a list of your instances with their state, port, and
 DHIS2 major version. From there you can:
 
 - create an instance (version, seed database, Tomcat and analytics options,
-  heap size, explicit ports, or a custom WAR)
+  heap size, explicit ports, time zone, extra CORS origins, a label, or a
+  custom WAR)
+- see a seed's notes (contents, admin login, known issues) before using it
 - start, stop, and delete instances
 - reset an instance back to a seed
 - back up an instance to a new seed, and restore from one
 - upgrade an instance to another DHIS2 version
 - change the Tomcat heap of an existing instance
+- generate analytics tables
+- see when a running instance is still deploying or migrating
 - watch the running job, and read the log of a job that failed
 
 Long operations run as broker jobs. The app polls them and shows progress in

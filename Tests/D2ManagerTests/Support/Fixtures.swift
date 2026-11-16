@@ -34,7 +34,13 @@ enum Fixtures {
       "path": "sl-demo-v42.sql.gz",
       "source": "seeds",
       "size_bytes": 184729281,
-      "modified": "2026-04-01T13:22:08+00:00"
+      "modified": "2026-04-01T13:22:08+00:00",
+      "dhis2_version": 42,
+      "notes": {
+        "description": "Sierra Leone demo database (DHIS2 2.42).",
+        "admin_user": "admin logs in but is not a superuser. Use local_admin/district.",
+        "known_issues": ["Org unit geometry missing"]
+      }
     }
     """
 

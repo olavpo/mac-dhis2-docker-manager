@@ -67,6 +67,9 @@ struct ActiveOperationView: View {
         case .backup: "Backing up"
         case .upgrade: "Upgrading"
         case .memory: "Resizing memory of"
+        case .analytics: "Running analytics on"
+        case .restartDb: "Restarting database of"
+        case .unknown: "Working on"
         }
     }
 }

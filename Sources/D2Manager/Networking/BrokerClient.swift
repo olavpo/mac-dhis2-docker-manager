@@ -118,6 +118,12 @@ struct BrokerClient: BrokerClientProtocol {
         return try await postJob(path: "instances/\(name)/memory", body: Body(memory: memory))
     }
 
+    func analytics(name: String, lastYears: Int?) async throws -> Job {
+        struct Body: Encodable { let lastYears: Int }
+        // No body = all years.
+        return try await postJob(path: "instances/\(name)/analytics", body: lastYears.map(Body.init))
+    }
+
     func start(name: String) async throws -> Job {
         try await postJob(path: "instances/\(name)/start", body: Optional<CreateInstanceRequest>.none)
     }

@@ -10,6 +10,7 @@ protocol BrokerClientProtocol: Sendable {
     func backup(name: String, label: String?) async throws -> Job
     func upgrade(name: String, _ request: UpgradeRequest) async throws -> Job
     func setMemory(name: String, memory: String) async throws -> Job
+    func analytics(name: String, lastYears: Int?) async throws -> Job
     func start(name: String) async throws -> Job
     func stop(name: String) async throws -> Job
     func delete(name: String) async throws -> Job

@@ -97,6 +97,40 @@ import Foundation
         #expect(model.instances.first?.dhis2MajorVersion == "42")   // from cache
     }
 
+    @Test func readinessShowsOnlyWhileRunningAndClearsAfterJob() async {
+        let fake = FakeBrokerClient()
+        fake.instancesResult = [TestInstances.running]
+        var migrating = TestInstances.running
+        migrating.readiness = "migrating"
+        fake.instancesFullResult = [migrating]
+        let model = makeModel(fake)
+
+        await model.refreshAll()
+        #expect(model.instances.first?.readiness == "migrating")
+
+        var stopped = TestInstances.running
+        stopped.status = .stopped
+        fake.instancesResult = [stopped]
+        await model.refresh()
+        #expect(model.instances.first?.readiness == nil)   // not shown when stopped
+
+        fake.instancesResult = [TestInstances.running]
+        fake.mutationResult = TestJobs.job(op: .start, status: .queued)
+        fake.jobScript = [TestJobs.job(op: .start, status: .succeeded)]
+        await model.start(name: "demo1")
+        #expect(model.instances.first?.readiness == nil)   // stale cache dropped
+    }
+
+    @Test func runAnalyticsPassesLastYears() async {
+        let fake = FakeBrokerClient()
+        fake.mutationResult = TestJobs.job(op: .analytics, status: .queued)
+        fake.jobScript = [TestJobs.job(op: .analytics, status: .succeeded)]
+        let model = makeModel(fake)
+        await model.runAnalytics(name: "demo1", lastYears: 3)
+        #expect(fake.analyticsCalls.count == 1)
+        #expect(fake.analyticsCalls.first?.1 == 3)
+    }
+
     @Test func refreshVersionsFailsQuietly() async {
         let fake = FakeBrokerClient()
         fake.instancesResult = [TestInstances.running]

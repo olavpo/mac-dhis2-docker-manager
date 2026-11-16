@@ -9,10 +9,19 @@ struct InstanceRowView: View {
     let onBackup: () -> Void
     let onUpgrade: () -> Void
     let onSetMemory: () -> Void
+    let onRunAnalytics: () -> Void
     let onDelete: () -> Void
 
     private var url: URL? {
         instance.localhostUrl.flatMap(URL.init(string:))
+    }
+
+    /// Tooltip on the name: label and time zone from create, when set.
+    private var nameHelp: String {
+        var lines = [instance.name]
+        if let label = instance.label, !label.isEmpty { lines.append(label) }
+        if let tz = instance.timezone { lines.append("Time zone: \(tz)") }
+        return lines.joined(separator: "\n")
     }
 
     var body: some View {
@@ -23,6 +32,7 @@ struct InstanceRowView: View {
                 .font(Theme.rowName)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .help(nameHelp)
 
             if instance.agentManaged {
                 Text("agent")
@@ -40,6 +50,17 @@ struct InstanceRowView: View {
                     .padding(.vertical, 1)
                     .glassEffect(.regular, in: .capsule)
                     .help("Dedicated Apache Doris analytics database")
+            }
+            if let readiness = instance.readiness, readiness != "ready" {
+                Text(readiness)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Color.orange.opacity(0.15), in: .capsule)
+                    .help(readiness == "migrating"
+                          ? "DHIS2 is answering but still starting up (Flyway migrations or context startup)."
+                          : "Tomcat is up but DHIS2 isn't answering on /api yet.")
             }
             if let v = instance.dhis2MajorVersion {
                 Text("v\(v)")
@@ -87,6 +108,8 @@ struct InstanceRowView: View {
                     .disabled(instance.status != .running)   // the DB must be running to dump
                 Button { onUpgrade() } label: { Label("Upgrade / Deploy WAR…", systemImage: "arrow.up.circle") }
                 Button { onSetMemory() } label: { Label("Set Memory…", systemImage: "memorychip") }
+                Button { onRunAnalytics() } label: { Label("Run Analytics…", systemImage: "chart.bar") }
+                    .disabled(instance.status != .running)
             }
         } label: {
             Image(systemName: "ellipsis")

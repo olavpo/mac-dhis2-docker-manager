@@ -21,6 +21,10 @@ final class AppModel {
     /// broker can't read the version of a stopped DB) and across app launches.
     private var versionsByName: [String: String] = [:]
 
+    /// Readiness from the last `full=1` fetch. Not persisted: it only means
+    /// something while the instance keeps running.
+    private var readinessByName: [String: String] = [:]
+
     init(client: BrokerClientProtocol, poller: JobPoller, versionStore: UserDefaults? = nil) {
         self.client = client
         self.poller = poller
@@ -54,6 +58,9 @@ final class AppModel {
         for instance in full where instance.dhis2MajorVersion != nil {
             versionsByName[instance.name] = instance.dhis2MajorVersion
         }
+        readinessByName = Dictionary(uniqueKeysWithValues: full.compactMap { i in
+            i.readiness.map { (i.name, $0) }
+        })
         instances = merging(versions: versionsByName, into: instances)
         versionStore?.set(versionsByName, forKey: Self.versionsKey)
     }
@@ -70,13 +77,15 @@ final class AppModel {
         recentJobs = (try? await client.jobs()) ?? recentJobs
     }
 
-    /// Fill in `dhis2MajorVersion` from the cache for any instance still missing it.
+    /// Fill in `dhis2MajorVersion` from the cache for any instance still missing
+    /// it, and `readiness` for running instances only.
     private func merging(versions: [String: String], into list: [Instance]) -> [Instance] {
         list.map { instance in
-            guard instance.dhis2MajorVersion == nil, let version = versions[instance.name]
-            else { return instance }
             var copy = instance
-            copy.dhis2MajorVersion = version
+            if copy.dhis2MajorVersion == nil { copy.dhis2MajorVersion = versions[instance.name] }
+            if copy.readiness == nil && copy.status == .running {
+                copy.readiness = readinessByName[instance.name]
+            }
             return copy
         }
     }
@@ -101,6 +110,7 @@ final class AppModel {
     func backup(name: String, label: String? = nil) async { await run { try await self.client.backup(name: name, label: label) } }
     func upgrade(name: String, _ request: UpgradeRequest) async { await run { try await self.client.upgrade(name: name, request) } }
     func setMemory(name: String, memory: String) async { await run { try await self.client.setMemory(name: name, memory: memory) } }
+    func runAnalytics(name: String, lastYears: Int?) async { await run { try await self.client.analytics(name: name, lastYears: lastYears) } }
 
     /// Shared mutation flow: kick off the op, then poll its job to terminal,
     /// reflecting progress in `activeJob`, recording the final job, and refreshing.
@@ -118,6 +128,9 @@ final class AppModel {
                 finalJob = update
             }
             activeJob = nil
+            // Booting jobs hold until the instance is ready, so the cached
+            // readiness for it is stale now.
+            readinessByName[finalJob.instance] = nil
             // Dedupe by id so a locally-tracked job doesn't duplicate one already
             // seeded from `jobs()` (loadRecentJobs).
             recentJobs.removeAll { $0.id == finalJob.id }

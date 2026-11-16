@@ -28,6 +28,7 @@ final class FakeBrokerClient: BrokerClientProtocol, @unchecked Sendable {
     private(set) var backupCalls: [(String, String?)] = []
     private(set) var upgradeCalls: [(String, UpgradeRequest)] = []
     private(set) var memoryCalls: [(String, String)] = []
+    private(set) var analyticsCalls: [(String, Int?)] = []
 
     func health() async -> Bool { error == nil }
 
@@ -55,6 +56,7 @@ final class FakeBrokerClient: BrokerClientProtocol, @unchecked Sendable {
     func backup(name: String, label: String?) async throws -> Job { backupCalls.append((name, label)); return try mutationOrThrow() }
     func upgrade(name: String, _ request: UpgradeRequest) async throws -> Job { upgradeCalls.append((name, request)); return try mutationOrThrow() }
     func setMemory(name: String, memory: String) async throws -> Job { memoryCalls.append((name, memory)); return try mutationOrThrow() }
+    func analytics(name: String, lastYears: Int?) async throws -> Job { analyticsCalls.append((name, lastYears)); return try mutationOrThrow() }
     func start(name: String) async throws -> Job { startedNames.append(name); return try mutationOrThrow() }
     func stop(name: String) async throws -> Job { stoppedNames.append(name); return try mutationOrThrow() }
     func delete(name: String) async throws -> Job { deletedNames.append(name); return try mutationOrThrow() }

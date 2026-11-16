@@ -58,7 +58,36 @@ struct SeedPicker: View {
             if matches.isEmpty && !seeds.isEmpty {
                 Text("No seeds match “\(search)”.").font(.caption).foregroundStyle(.secondary)
             }
+
+            if let notes = selectedSeed?.notes {
+                notesView(notes)
+            }
         }
+    }
+
+    private var selectedSeed: Seed? {
+        guard let selection, !selection.isEmpty else { return nil }
+        return seeds.first { $0.path == selection }
+    }
+
+    /// The selected seed's sidecar notes: what it contains, whether `admin`
+    /// works, known defects.
+    @ViewBuilder private func notesView(_ notes: SeedNotes) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let d = notes.description { Text(d) }
+            if let u = notes.dataUntil { Text("Data until: \(u)").foregroundStyle(.secondary) }
+            if let a = notes.adminUser { Text("Admin: \(a)").foregroundStyle(.secondary) }
+            if notes.analyticsOk == false {
+                Text("Analytics not working on this seed.").foregroundStyle(.orange)
+            }
+            ForEach(notes.knownIssues ?? [], id: \.self) { issue in
+                Label(issue, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private func row(_ seed: Seed) -> some View {
@@ -76,6 +105,9 @@ struct SeedPicker: View {
     private func subtitle(_ seed: Seed) -> String {
         let size = ByteCountFormatter.string(fromByteCount: Int64(seed.sizeBytes), countStyle: .file)
         let date = String(seed.modified.prefix(10))   // YYYY-MM-DD
-        return "\(size) · \(date)"
+        var parts = [size, date]
+        if let v = seed.dhis2Version { parts.insert("v\(v)", at: 0) }
+        if seed.notes?.knownIssues?.isEmpty == false { parts.append("known issues") }
+        return parts.joined(separator: " · ")
     }
 }

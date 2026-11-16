@@ -79,6 +79,7 @@ enum Dialogs {
     static let restore = DialogWindow()
     static let upgrade = DialogWindow()
     static let memory = DialogWindow()
+    static let analytics = DialogWindow()
     static let log = DialogWindow()
     static let settings = DialogWindow()
 }

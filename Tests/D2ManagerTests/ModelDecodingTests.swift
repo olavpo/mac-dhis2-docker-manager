@@ -23,6 +23,13 @@ import Foundation
         #expect(try decodeRaw(JobOp.self, "\"backup\"") == .backup)
         #expect(try decodeRaw(JobOp.self, "\"upgrade\"") == .upgrade)
         #expect(try decodeRaw(JobOp.self, "\"memory\"") == .memory)
+        #expect(try decodeRaw(JobOp.self, "\"analytics\"") == .analytics)
+        #expect(try decodeRaw(JobOp.self, "\"restart-db\"") == .restartDb)
+    }
+
+    // The broker adds ops over time; an unknown one must not break the jobs list.
+    @Test func unknownJobOpDecodesAsUnknown() throws {
+        #expect(try decodeRaw(JobOp.self, "\"defragment\"") == .unknown)
     }
 
     @Test func upgradeRequestOmitsNilsAndSnakeCases() throws {
@@ -75,6 +82,27 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(s.sizeBytes == 184729281)
         #expect(s.modified == "2026-04-01T13:22:08+00:00")
         #expect(s.id == "sl-demo-v42.sql.gz")
+        #expect(s.dhis2Version == 42)
+        #expect(s.notes?.description == "Sierra Leone demo database (DHIS2 2.42).")
+        #expect(s.notes?.adminUser?.contains("local_admin") == true)
+        #expect(s.notes?.knownIssues == ["Org unit geometry missing"])
+    }
+
+    // `notes` is a hand-written sidecar returned as-is; a malformed one must
+    // not fail the seeds list.
+    @Test func seedWithMalformedNotesDecodes() throws {
+        let json = #"{"path":"x.sql.gz","source":"seeds","size_bytes":1,"modified":"t","dhis2_version":null,"notes":"oops"}"#
+        let s = try BrokerCoders.decoder.decode(Seed.self, from: Fixtures.data(json))
+        #expect(s.dhis2Version == nil)
+        #expect(s.notes == nil)
+    }
+
+    @Test func instanceNewFieldsDecode() throws {
+        let json = #"{"name":"a","status":"running","agent_managed":false,"label":"PI review","timezone":"Africa/Lagos","created_at":"2026-07-16T08:12:44+00:00","readiness":"migrating"}"#
+        let i = try BrokerCoders.decoder.decode(Instance.self, from: Fixtures.data(json))
+        #expect(i.label == "PI review")
+        #expect(i.timezone == "Africa/Lagos")
+        #expect(i.readiness == "migrating")
     }
 }
 
@@ -134,5 +162,16 @@ func decodeRaw<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
         #expect(obj["http_port"] as? Int == 9010)
         #expect(obj["pg_port"] as? Int == 5433)
         #expect(obj["analytics"] as? String == "doris")
+    }
+
+    @Test func createRequestEncodesTimezoneCorsLabel() throws {
+        let req = CreateInstanceRequest(
+            name: "demo1", timezone: "Africa/Lagos",
+            corsOrigins: ["http://localhost:4000"], label: "PI review")
+        let obj = try JSONSerialization.jsonObject(
+            with: BrokerCoders.encoder.encode(req)) as! [String: Any]
+        #expect(obj["timezone"] as? String == "Africa/Lagos")
+        #expect(obj["cors_origins"] as? [String] == ["http://localhost:4000"])
+        #expect(obj["label"] as? String == "PI review")
     }
 }

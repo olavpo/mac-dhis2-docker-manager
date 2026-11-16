@@ -11,8 +11,14 @@ struct CreateInstanceRequest: Codable, Sendable, Equatable {
     var pgPort: Int?
     var warUrl: String?
     var warFile: String?
-    /// "doris" for a dedicated analytics DB (requires DHIS2 >= 42).
+    /// "doris" for a dedicated analytics DB (requires DHIS2 >= 42 or a custom WAR).
     var analytics: String?
+    /// IANA time zone, e.g. "Africa/Lagos". Broker default: Etc/UTC.
+    var timezone: String?
+    /// Extra CORS origins (≤ 20); localhost:3000 and :8080 are always added.
+    var corsOrigins: [String]?
+    /// Free text (≤ 100 chars), echoed back in GET /instances.
+    var label: String?
 
     init(
         name: String,
@@ -24,7 +30,10 @@ struct CreateInstanceRequest: Codable, Sendable, Equatable {
         pgPort: Int? = nil,
         warUrl: String? = nil,
         warFile: String? = nil,
-        analytics: String? = nil
+        analytics: String? = nil,
+        timezone: String? = nil,
+        corsOrigins: [String]? = nil,
+        label: String? = nil
     ) {
         self.name = name
         self.version = version
@@ -36,5 +45,8 @@ struct CreateInstanceRequest: Codable, Sendable, Equatable {
         self.warUrl = warUrl
         self.warFile = warFile
         self.analytics = analytics
+        self.timezone = timezone
+        self.corsOrigins = corsOrigins
+        self.label = label
     }
 }
